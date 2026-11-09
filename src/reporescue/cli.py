@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 from reporescue import __version__
+from reporescue.checks import Status, run_all
+from reporescue.context import RepoContext
+
+ICONS = {Status.PASS: "PASS", Status.WARN: "WARN", Status.FAIL: "FAIL", Status.SKIP: "SKIP"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,10 +30,23 @@ def cmd_scan(path: Path) -> int:
     if not path.is_dir():
         print(f"error: {path} is not a directory", file=sys.stderr)
         return 2
-    is_git = (path / ".git").exists()
-    print(f"Scanning {path.resolve()}")
-    print(f"  git repository: {'yes' if is_git else 'no'}")
-    print("  no checks registered yet")
+    ctx = RepoContext(path.resolve())
+    print(f"Scanning {ctx.root}")
+    results = run_all(ctx)
+    category = None
+    for r in results:
+        if r.category != category:
+            category = r.category
+            print(f"\n[{category}]")
+        print(f"  {ICONS[r.status]}  {r.title}: {r.message}")
+        if r.status in (Status.WARN, Status.FAIL):
+            for d in r.details[:5]:
+                print(f"          - {d}")
+    counts = {s: sum(r.status is s for r in results) for s in Status}
+    print(
+        f"\n{counts[Status.PASS]} passed, {counts[Status.WARN]} warnings, "
+        f"{counts[Status.FAIL]} failed, {counts[Status.SKIP]} skipped"
+    )
     return 0
 
 

@@ -17,13 +17,9 @@ def test_version(capsys):
 def test_scan_directory(tmp_path, capsys):
     assert main(["scan", str(tmp_path)]) == 0
     out = capsys.readouterr().out
-    assert "git repository: no" in out
-
-
-def test_scan_detects_git(tmp_path, capsys):
-    (tmp_path / ".git").mkdir()
-    assert main(["scan", str(tmp_path)]) == 0
-    assert "git repository: yes" in capsys.readouterr().out
+    assert "[docs]" in out
+    assert "FAIL  README" in out
+    assert "passed," in out
 
 
 def test_scan_missing_path(tmp_path, capsys):
