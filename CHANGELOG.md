@@ -8,6 +8,7 @@ First release.
 
 ### Added
 
+- MIT license.
 - `reporescue scan [path]` command, also available as `python -m reporescue`.
 - 14 offline health checks in four categories:
   - **docs**: README, license, `.gitignore`, contributing guide.

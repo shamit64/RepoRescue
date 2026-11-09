@@ -200,4 +200,4 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
-No license has been chosen yet. Until one is added, the default copyright rules apply.
+RepoRescue is released under the [MIT License](LICENSE).
