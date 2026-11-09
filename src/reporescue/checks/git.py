@@ -28,6 +28,8 @@ def activity(ctx):
 def bus_factor(ctx):
     if not ctx.is_git:
         return Status.SKIP, "Not a git repository."
+    if ctx.is_shallow:
+        return Status.SKIP, "Shallow clone, so the author history is incomplete. Fetch full history to check."
     log = ctx.git("log", "--since=12.months", "--format=%aE")
     authors = Counter(line.lower() for line in (log or "").splitlines() if line)
     total = sum(authors.values())
@@ -52,6 +54,9 @@ def stale_branches(ctx):
     stale = []
     for line in (out or "").splitlines():
         name, _, ts = line.rpartition(" ")
+        # The checked-out branch is covered by the activity check; don't count it twice.
+        if name == ctx.current_branch:
+            continue
         if ts.isdigit() and int(ts) < cutoff:
             stale.append(name)
     if stale:

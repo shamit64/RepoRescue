@@ -24,6 +24,17 @@ class RepoContext:
     def is_git(self) -> bool:
         return self.git("rev-parse", "--is-inside-work-tree") == "true"
 
+    @cached_property
+    def is_shallow(self) -> bool:
+        """True for a shallow clone (e.g. actions/checkout's default), where history is cut off."""
+        return self.is_git and self.git("rev-parse", "--is-shallow-repository") == "true"
+
+    @cached_property
+    def current_branch(self) -> str | None:
+        if not self.is_git:
+            return None
+        return self.git("branch", "--show-current") or None  # empty on a detached HEAD
+
     def git(self, *args: str) -> str | None:
         """Run a read-only git command in the repo. Returns stdout, or None on failure."""
         if args in self._git_cache:
@@ -33,7 +44,8 @@ class RepoContext:
                 ["git", "-C", str(self.root), *args],
                 capture_output=True, text=True, timeout=60,
             )
-            out = result.stdout.strip() if result.returncode == 0 else None
+            # rstrip only: leading spaces are meaningful (e.g. " M file" in git status).
+            out = result.stdout.rstrip() if result.returncode == 0 else None
         except (OSError, subprocess.TimeoutExpired):
             out = None
         self._git_cache[args] = out
