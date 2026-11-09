@@ -116,10 +116,54 @@ def test_missing_lockfile(tmp_path):
 
 def test_old_repo_and_stale_branch(tmp_path):
     make_repo(tmp_path, {"README.md": "x"}, when=time.time() - 400 * 86_400)
+    git(tmp_path, "branch", "old-feature")
     r = results_by_id(tmp_path)
     assert r["git.activity"].status is Status.FAIL
     assert r["git.stale_branches"].status is Status.WARN
-    assert r["git.stale_branches"].details == ["main"]
+    # The checked-out branch is judged by git.activity, so only the other branch is listed.
+    assert r["git.stale_branches"].details == ["old-feature"]
+
+
+def test_current_branch_alone_is_not_stale(tmp_path):
+    make_repo(tmp_path, {"README.md": "x"}, when=time.time() - 400 * 86_400)
+    assert results_by_id(tmp_path)["git.stale_branches"].status is Status.PASS
+
+
+def test_shallow_clone_skips_bus_factor(tmp_path):
+    source, clone = tmp_path / "source", tmp_path / "clone"
+    source.mkdir()
+    make_repo(source, {"README.md": "x"})
+    (source / "b.txt").write_text("b")
+    git(source, "add", "-A")
+    git(source, "commit", "-q", "-m", "second", env={
+        "GIT_AUTHOR_NAME": "B", "GIT_AUTHOR_EMAIL": "b@example.com",
+        "GIT_COMMITTER_NAME": "B", "GIT_COMMITTER_EMAIL": "b@example.com",
+    })
+    subprocess.run(
+        ["git", "clone", "-q", "--depth", "1", source.resolve().as_uri(), str(clone)],
+        check=True, capture_output=True,
+    )
+    r = results_by_id(clone)
+    assert r["git.bus_factor"].status is Status.SKIP
+    assert "Shallow clone" in r["git.bus_factor"].message
+    assert r["git.activity"].status is Status.PASS  # the tip commit is still there
+
+
+def test_uncommitted_details_keep_status_columns(tmp_path):
+    make_repo(tmp_path, {"README.md": "x"})
+    (tmp_path / "README.md").write_text("changed")
+    r = results_by_id(tmp_path)["git.uncommitted"]
+    assert r.details == [" M README.md"]
+
+
+def test_npmrc_can_opt_out_of_lockfile(tmp_path):
+    (tmp_path / "package.json").write_text("{}")
+    (tmp_path / ".npmrc").write_text("ignore-scripts=true\npackage-lock = false\n")
+    r = results_by_id(tmp_path)["deps.lockfile"]
+    assert r.status is Status.PASS
+    assert "intentionally disabled" in r.message
+    (tmp_path / ".npmrc").write_text("package-lock=true\n")
+    assert results_by_id(tmp_path)["deps.lockfile"].status is Status.WARN
 
 
 def test_uncommitted_changes(tmp_path):
